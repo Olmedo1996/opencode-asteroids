@@ -29,6 +29,64 @@ const dist  = (a, b)   => Math.hypot(a.x - b.x, a.y - b.y);
 const rand  = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
 
+// ── Skins de la nave ───────────────────────────────────────────────────────────
+// Cada skin define la silueta (vértices), color del contorno y color de la llama.
+// Los vértices son locales a la nave, apuntando hacia +x (la nariz).
+const SKINS = [
+  {
+    id:   'classic',
+    name: 'CLÁSICA',
+    stroke: '#fff',
+    lineWidth: 1.5,
+    flame: 'rgba(255, 130, 0, 0.85)',
+    // Triángulo con muesca trasera (silueta original)
+    verts: [[20, 0], [-12, -9], [-7, 0], [-12, 9]],
+  },
+  {
+    id:   'fighter',
+    name: 'CAZA',
+    stroke: '#ff5a5a',
+    lineWidth: 1.5,
+    flame: 'rgba(255, 220, 120, 0.9)',
+    // Flecha afilada y alargada
+    verts: [[24, 0], [-14, -7], [-10, 0], [-14, 7], [-6, 0]],
+  },
+  {
+    id:   'bugeye',
+    name: 'BUGNA',
+    stroke: '#ffaa33',
+    lineWidth: 1.5,
+    flame: 'rgba(255, 80, 0, 0.9)',
+    // Nave ancha con alas pronunciadas
+    verts: [[16, 0], [-6, -12], [-14, -10], [-8, 0], [-14, 10], [-6, 12]],
+  },
+  {
+    id:   'ghost',
+    name: 'ESPECTRAL',
+    stroke: '#5affd0',
+    lineWidth: 1.5,
+    flame: 'rgba(120, 255, 220, 0.9)',
+    // Triángulo con doble muesca trasera
+    verts: [[22, 0], [-10, -10], [-6, -3], [-12, 0], [-6, 3], [-10, 10]],
+  },
+];
+
+const SKIN_COUNT = SKINS.length;
+const SKIN_KEY = 'asteroids.skin';
+const SKIN_MSG_TTL = 2;  // segundos que se muestra el nombre de la skin al cambiar
+
+function loadSkinIndex() {
+  const raw = parseInt(localStorage.getItem(SKIN_KEY), 10);
+  return Number.isInteger(raw) && raw >= 0 && raw < SKIN_COUNT ? raw : 0;
+}
+
+function saveSkinIndex(i) {
+  try { localStorage.setItem(SKIN_KEY, String(i)); } catch (e) { /* localStorage podría estar bloqueado */ }
+}
+
+let currentSkinIndex = loadSkinIndex();
+let skinMsgTimer = 0;
+
 // ── Bullet ────────────────────────────────────────────────────────────────────
 class Bullet {
   constructor(x, y, angle) {
@@ -299,19 +357,21 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const skin = SKINS[currentSkinIndex];
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth   = 1.5;
+    ctx.strokeStyle = skin.stroke;
+    ctx.lineWidth   = skin.lineWidth;
     ctx.lineJoin    = 'round';
 
-    // Silueta clásica: triángulo con muesca trasera
+    // Silueta según la skin activa
+    const v = skin.verts;
     ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
+    ctx.moveTo(v[0][0], v[0][1]);
+    for (let i = 1; i < v.length; i++)
+      ctx.lineTo(v[i][0], v[i][1]);
     ctx.closePath();
     ctx.stroke();
 
@@ -323,7 +383,7 @@ class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - len, 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = boosted ? 'rgba(0, 255, 255, 0.95)' : 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = boosted ? 'rgba(0, 255, 255, 0.95)' : skin.flame;
       ctx.shadowColor  = boosted ? '#0ff' : 'transparent';
       ctx.shadowBlur   = boosted ? 8 : 0;
       ctx.stroke();
@@ -442,7 +502,22 @@ function killShip() {
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
+function selectSkin(i) {
+  if (i < 0 || i >= SKIN_COUNT || i === currentSkinIndex) return;
+  currentSkinIndex = i;
+  saveSkinIndex(i);
+  skinMsgTimer = SKIN_MSG_TTL;
+}
+
 function update(dt) {
+  // Cambio de skin (teclas 1-4) — disponible en cualquier estado
+  if (pressed('Digit1')) selectSkin(0);
+  if (pressed('Digit2')) selectSkin(1);
+  if (pressed('Digit3')) selectSkin(2);
+  if (pressed('Digit4')) selectSkin(3);
+
+  if (skinMsgTimer > 0) skinMsgTimer -= dt;
+
   if (state === 'gameover') {
     if (pressed('Space')) initGame();
     particles.forEach(p => p.update(dt));
@@ -544,20 +619,25 @@ function update(dt) {
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
+function drawShipShape(scale) {
+  const skin = SKINS[currentSkinIndex];
+  const v = skin.verts;
+  ctx.strokeStyle = skin.stroke;
+  ctx.lineWidth   = 1.2;
+  ctx.lineJoin    = 'round';
+  ctx.beginPath();
+  ctx.moveTo(v[0][0] * scale, v[0][1] * scale);
+  for (let i = 1; i < v.length; i++)
+    ctx.lineTo(v[i][0] * scale, v[i][1] * scale);
+  ctx.closePath();
+  ctx.stroke();
+}
+
 function drawLifeIcon(x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth   = 1.2;
-  ctx.lineJoin    = 'round';
-  ctx.beginPath();
-  ctx.moveTo( 9,  0);
-  ctx.lineTo(-6, -5);
-  ctx.lineTo(-3,  0);
-  ctx.lineTo(-6,  5);
-  ctx.closePath();
-  ctx.stroke();
+  drawShipShape(0.45);
   ctx.restore();
 }
 
@@ -602,6 +682,29 @@ function drawHUD() {
     ctx.strokeRect(BAR_X, BAR_Y, BAR_W, BAR_H);
   }
 
+  // Etiqueta de skin activa en la esquina inferior derecha
+  const skin = SKINS[currentSkinIndex];
+  ctx.textAlign = 'right';
+  ctx.font = '13px monospace';
+  ctx.fillStyle = skin.stroke;
+  ctx.fillText(`SKIN ${currentSkinIndex + 1}/${SKIN_COUNT}: ${skin.name}`, W - 12, H - 12);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '11px monospace';
+  ctx.fillText('TECLAS 1-4 PARA CAMBIAR', W - 12, H - 28);
+
+}
+
+function drawSkinMessage() {
+  if (skinMsgTimer <= 0) return;
+  const skin = SKINS[currentSkinIndex];
+  const fade = Math.min(1, skinMsgTimer / 0.4);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 26px monospace';
+  ctx.fillStyle = skin.stroke;
+  ctx.globalAlpha = fade;
+  ctx.fillText(`SKIN: ${skin.name}`, W / 2, H / 2 - 60);
+  ctx.restore();
 }
 
 function drawOverlay(title, sub) {
@@ -626,6 +729,7 @@ function draw() {
   ship.draw();
 
   drawHUD();
+  drawSkinMessage();
 
   if (state === 'gameover')
     drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`);
