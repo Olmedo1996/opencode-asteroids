@@ -69,6 +69,19 @@ const SKINS = [
     // Triángulo con doble muesca trasera
     verts: [[22, 0], [-10, -10], [-6, -3], [-12, 0], [-6, 3], [-10, 10]],
   },
+  {
+    id:   'leviathan',
+    name: 'LEVIATÁN',
+    stroke: '#3bff00',
+    lineWidth: 1.8,
+    flame: 'rgba(150, 255, 60, 0.9)',
+    // Color verde fuera de la gama actual. El doble de grande (scale = 2)
+    // y otorga el doble de puntos (pointsMul = 2).
+    scale: 2,
+    pointsMul: 2,
+    // Silueta maciza y angular
+    verts: [[24, 0], [-10, -12], [-12, -4], [-18, -7], [-18, 7], [-12, 4], [-10, 12]],
+  },
 ];
 
 const SKIN_COUNT = SKINS.length;
@@ -344,7 +357,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = 12 * (SKINS[currentSkinIndex].scale || 1);
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -385,7 +398,8 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const scale = SKINS[currentSkinIndex].scale || 1;
+    const NOSE = 21 * scale;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     if (this.tripleTimer > 0) {
@@ -412,12 +426,13 @@ class Ship {
     ctx.lineWidth   = skin.lineWidth;
     ctx.lineJoin    = 'round';
 
-    // Silueta según la skin activa
+    // Silueta según la skin activa (escalada según la skin)
     const v = skin.verts;
+    const s = skin.scale || 1;
     ctx.beginPath();
-    ctx.moveTo(v[0][0], v[0][1]);
+    ctx.moveTo(v[0][0] * s, v[0][1] * s);
     for (let i = 1; i < v.length; i++)
-      ctx.lineTo(v[i][0], v[i][1]);
+      ctx.lineTo(v[i][0] * s, v[i][1] * s);
     ctx.closePath();
     ctx.stroke();
 
@@ -426,9 +441,9 @@ class Ship {
       const boosted = this.boostTimer > 0;
       const len = boosted ? rand(10, 22) : rand(6, 14);
       ctx.beginPath();
-      ctx.moveTo(-8, -4);
-      ctx.lineTo(-8 - len, 0);
-      ctx.lineTo(-8,  4);
+      ctx.moveTo(-8 * s, -4 * s);
+      ctx.lineTo(-8 * s - len, 0);
+      ctx.lineTo(-8 * s,  4 * s);
       ctx.strokeStyle = boosted ? 'rgba(0, 255, 255, 0.95)' : skin.flame;
       ctx.shadowColor  = boosted ? '#0ff' : 'transparent';
       ctx.shadowBlur   = boosted ? 8 : 0;
@@ -549,7 +564,8 @@ function killShip() {
 
 function destroyAsteroid(a) {
   a.dead = true;
-  score += POINTS[a.size];
+  const mul = SKINS[currentSkinIndex].pointsMul || 1;
+  score += POINTS[a.size] * mul;
   explode(a.x, a.y, a.size * 5);
   const children = a.split();
   // Drop único de power-up (12% chance), tipo random entre speed/triple/shield
@@ -567,6 +583,7 @@ function selectSkin(i) {
   currentSkinIndex = i;
   saveSkinIndex(i);
   skinMsgTimer = SKIN_MSG_TTL;
+  if (ship && !ship.dead) ship.radius = 12 * (SKINS[currentSkinIndex].scale || 1);
 }
 
 function update(dt) {
@@ -575,6 +592,7 @@ function update(dt) {
   if (pressed('Digit2')) selectSkin(1);
   if (pressed('Digit3')) selectSkin(2);
   if (pressed('Digit4')) selectSkin(3);
+  if (pressed('Digit5')) selectSkin(4);
 
   if (skinMsgTimer > 0) skinMsgTimer -= dt;
 
@@ -634,7 +652,7 @@ function update(dt) {
       if (!b.dead && dist(b, shootingStar) < shootingStar.radius) {
         b.dead = true;
         shootingStar.dead = true;
-        score += SHOOTING_STAR_POINTS;
+        score += SHOOTING_STAR_POINTS * (SKINS[currentSkinIndex].pointsMul || 1);
         explode(shootingStar.x, shootingStar.y, 12);
         // Polvo dorado extra
         for (let i = 0; i < 10; i++)
@@ -696,13 +714,14 @@ function update(dt) {
 function drawShipShape(scale) {
   const skin = SKINS[currentSkinIndex];
   const v = skin.verts;
+  const s = scale * (skin.scale || 1);
   ctx.strokeStyle = skin.stroke;
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
   ctx.beginPath();
-  ctx.moveTo(v[0][0] * scale, v[0][1] * scale);
+  ctx.moveTo(v[0][0] * s, v[0][1] * s);
   for (let i = 1; i < v.length; i++)
-    ctx.lineTo(v[i][0] * scale, v[i][1] * scale);
+    ctx.lineTo(v[i][0] * s, v[i][1] * s);
   ctx.closePath();
   ctx.stroke();
 }
@@ -836,7 +855,7 @@ function drawHUD() {
   ctx.fillText(`SKIN ${currentSkinIndex + 1}/${SKIN_COUNT}: ${skin.name}`, W - 12, H - 12);
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
   ctx.font = '11px monospace';
-  ctx.fillText('TECLAS 1-4 PARA CAMBIAR', W - 12, H - 28);
+  ctx.fillText('TECLAS 1-5 PARA CAMBIAR', W - 12, H - 28);
 
 }
 
