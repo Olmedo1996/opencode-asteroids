@@ -69,6 +69,17 @@ const SKINS = [
     // Triángulo con doble muesca trasera
     verts: [[22, 0], [-10, -10], [-6, -3], [-12, 0], [-6, 3], [-10, 10]],
   },
+  {
+    id:   'titan',
+    name: 'TITÁN',
+    stroke: '#4a9bff',
+    lineWidth: 1.5,
+    flame: 'rgba(140, 200, 255, 0.9)',
+    scale: 2,      // el doble de grande que la nave original
+    scoreMult: 2,  // el doble de puntos al usarla
+    // Nave de guerra ancha con nariz robusta
+    verts: [[20, 0], [-14, -11], [-8, -4], [-8, 4], [-14, 11]],
+  },
 ];
 
 const SKIN_COUNT = SKINS.length;
@@ -344,7 +355,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = 12 * (SKINS[currentSkinIndex].scale || 1);
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -385,7 +396,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * (SKINS[currentSkinIndex].scale || 1);
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     if (this.tripleTimer > 0) {
@@ -408,6 +419,7 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
+    ctx.scale(skin.scale || 1, skin.scale || 1);
     ctx.strokeStyle = skin.stroke;
     ctx.lineWidth   = skin.lineWidth;
     ctx.lineJoin    = 'round';
@@ -549,7 +561,7 @@ function killShip() {
 
 function destroyAsteroid(a) {
   a.dead = true;
-  score += POINTS[a.size];
+  score += POINTS[a.size] * (SKINS[currentSkinIndex].scoreMult || 1);
   explode(a.x, a.y, a.size * 5);
   const children = a.split();
   // Drop único de power-up (12% chance), tipo random entre speed/triple/shield
@@ -567,6 +579,7 @@ function selectSkin(i) {
   currentSkinIndex = i;
   saveSkinIndex(i);
   skinMsgTimer = SKIN_MSG_TTL;
+  if (ship) ship.radius = 12 * (SKINS[i].scale || 1);
 }
 
 function update(dt) {
@@ -575,6 +588,7 @@ function update(dt) {
   if (pressed('Digit2')) selectSkin(1);
   if (pressed('Digit3')) selectSkin(2);
   if (pressed('Digit4')) selectSkin(3);
+  if (pressed('Digit5')) selectSkin(4);
 
   if (skinMsgTimer > 0) skinMsgTimer -= dt;
 
@@ -634,7 +648,7 @@ function update(dt) {
       if (!b.dead && dist(b, shootingStar) < shootingStar.radius) {
         b.dead = true;
         shootingStar.dead = true;
-        score += SHOOTING_STAR_POINTS;
+        score += SHOOTING_STAR_POINTS * (SKINS[currentSkinIndex].scoreMult || 1);
         explode(shootingStar.x, shootingStar.y, 12);
         // Polvo dorado extra
         for (let i = 0; i < 10; i++)
@@ -647,9 +661,10 @@ function update(dt) {
 
   // Escudo vs asteroide (destruye el asteroide, consume energía)
   if (!ship.dead && ship.shieldTimer > 0) {
+    const shieldR = SHIELD_RADIUS * (SKINS[currentSkinIndex].scale || 1);
     const newA = [];
     for (const a of asteroids) {
-      if (!a.dead && dist(ship, a) < SHIELD_RADIUS + a.radius) {
+      if (!a.dead && dist(ship, a) < shieldR + a.radius) {
         newA.push(...destroyAsteroid(a));
         ship.shieldTimer = Math.max(0, ship.shieldTimer - SHIELD_HIT_PENALTY);
         if (ship.shieldTimer <= 0) break;
@@ -722,19 +737,20 @@ function drawShield() {
   const pulse = 0.5 + 0.2 * Math.sin(performance.now() / 100);
   ctx.save();
   ctx.translate(ship.x, ship.y);
+  const r = SHIELD_RADIUS * (SKINS[currentSkinIndex].scale || 1);
   ctx.strokeStyle = `rgba(176,108,255,${pulse.toFixed(2)})`;
   ctx.lineWidth = 1.8;
   ctx.shadowColor = '#b06cff';
   ctx.shadowBlur = 10;
   ctx.beginPath();
-  ctx.arc(0, 0, SHIELD_RADIUS, 0, Math.PI * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.stroke();
   // Anillo interno tenue
   ctx.strokeStyle = `rgba(176,108,255,${(pulse * 0.4).toFixed(2)})`;
   ctx.lineWidth = 1;
   ctx.shadowBlur = 0;
   ctx.beginPath();
-  ctx.arc(0, 0, SHIELD_RADIUS - 4, 0, Math.PI * 2);
+  ctx.arc(0, 0, r - 4, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -836,7 +852,7 @@ function drawHUD() {
   ctx.fillText(`SKIN ${currentSkinIndex + 1}/${SKIN_COUNT}: ${skin.name}`, W - 12, H - 12);
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
   ctx.font = '11px monospace';
-  ctx.fillText('TECLAS 1-4 PARA CAMBIAR', W - 12, H - 28);
+  ctx.fillText('TECLAS 1-5 PARA CAMBIAR', W - 12, H - 28);
 
 }
 
